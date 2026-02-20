@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>현실 사건 기반 투자 시뮬레이션</title>
+<style>
+body { font-family: Arial; background:#f4f6f9; padding:20px; }
+.container { max-width:1100px; margin:auto; }
+.card {
+  background:white;
+  padding:15px;
+  margin-bottom:15px;
+  border-radius:10px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.1);
+}
+button {
+  padding:6px 10px;
+  margin:3px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+.buy { background:#2ecc71; color:white; }
+.sell { background:#e74c3c; color:white; }
+.next { background:#3498db; color:white; padding:10px 15px; }
+input { width:60px; }
+.summary { background:#eef2f7; padding:10px; margin-bottom:15px; border-radius:8px; }
+h3 { margin-top:0; }
+</style>
+</head>
+<body>
+
+<h1>📈 현실 사건 기반 투자 시뮬레이션</h1>
+<div class="container">
+
+<div class="summary" id="playerInfo"></div>
+<div id="eventBox" class="card"></div>
+<div id="companies"></div>
+
+<button class="next" onclick="nextPhase()">다음 단계</button>
+
+</div>
+
+<script>
+
+let phase = 0;
+
+let player = {
+  cash: 1000000,
+  holdings: {}
+};
+
+// ===== 기준 데이터 =====
+const companies = [
+{ label:"A사 (반도체)", eps:12000, per:10, roe:16, debt:38 },
+{ label:"B사 (전기차)", eps:5000, per:50, roe:20, debt:25 },
+{ label:"C사 (플랫폼)", eps:3000, per:30, roe:14, debt:45 }
+];
+
+companies.forEach(c => c.price = Math.round(c.eps * c.per));
+
+// ===== 현실 기반 이벤트 4단계 =====
+const events = [
+
+{
+  title:"이벤트1 시작: 글로벌 금리 급등",
+  description:"긴축 강화로 성장주 밸류에이션 급락",
+  effects:[
+    { eps:-0.10, per:-2 },   // 반도체 하락
+    { eps:-0.10, per:-20 },  // 전기차 대폭락
+    { eps:-0.05, per:-10 }   // 플랫폼 하락
+  ]
+},
+
+{
+  title:"이벤트2 시작: 반도체 업황 침체 + 플랫폼 규제 이슈",
+  description:"메모리 가격 급락과 규제 리스크 확대",
+  effects:[
+    { eps:-0.40, per:-2 },   // 반도체 폭락
+    { eps:-0.05, per:-3 },   // 전기차 소폭 하락
+    { eps:-0.15, per:-5 }    // 플랫폼 하락
+  ]
+},
+
+{
+  title:"이벤트3 시작: 전기차 가격 인하 전쟁",
+  description:"마진 압박 심화, 일부 기술주 반등",
+  effects:[
+    { eps:+0.05, per:+2 },   // 반도체 소폭 반등
+    { eps:-0.25, per:-10 },  // 전기차 급락
+    { eps:+0.10, per:+3 }    // 플랫폼 상승
+  ]
+},
+
+{
+  title:"이벤트4 시작: AI 열풍 확산",
+  description:"AI 수요 증가로 기술주 재평가",
+  effects:[
+    { eps:+0.35, per:+6 },   // 반도체 대폭 상승
+    { eps:+0.20, per:+10 },  // 전기차 상승
+    { eps:+0.08, per:+4 }    // 플랫폼 상승
+  ]
+}
+
+];
+
+// ===== 렌더 =====
+function render(){
+
+  document.getElementById("playerInfo").innerHTML =
+    `💰 보유 현금: ${player.cash.toLocaleString()}원`;
+
+  let html = "";
+
+  companies.forEach((c,i)=>{
+
+    if(!player.holdings[i]) player.holdings[i]=0;
+
+    html += `
+    <div class="card">
+      <h3>${c.label}</h3>
+      주가: ${c.price.toLocaleString()}원<br>
+      EPS: ${c.eps.toLocaleString()}<br>
+      PER: ${c.per}<br>
+      ROE: ${c.roe}%<br>
+      부채비율: ${c.debt}%<br>
+      보유수량: ${player.holdings[i]}주<br><br>
+
+      수량: <input type="number" id="qty${i}" value="1" min="1"
+      oninput="preview(${i})">
+
+      <div id="preview${i}"></div>
+
+      <button class="buy" onclick="buy(${i})">매수</button>
+      <button class="sell" onclick="sell(${i})">매도</button>
+    </div>
+    `;
+  });
+
+  document.getElementById("companies").innerHTML = html;
+}
+
+function preview(i){
+  const qty = parseInt(document.getElementById("qty"+i).value)||0;
+  const cost = qty * companies[i].price;
+  document.getElementById("preview"+i).innerHTML =
+    `예상 매수 후 잔액: ${(player.cash - cost).toLocaleString()}원<br>
+     예상 매도 후 잔액: ${(player.cash + cost).toLocaleString()}원`;
+}
+
+function buy(i){
+  const qty = parseInt(document.getElementById("qty"+i).value);
+  const cost = qty * companies[i].price;
+  if(cost > player.cash){ alert("현금 부족"); return; }
+  player.cash -= cost;
+  player.holdings[i] += qty;
+  render();
+}
+
+function sell(i){
+  const qty = parseInt(document.getElementById("qty"+i).value);
+  if(qty > player.holdings[i]){ alert("보유 수량 부족"); return; }
+  player.cash += qty * companies[i].price;
+  player.holdings[i] -= qty;
+  render();
+}
+
+function applyEvent(ev){
+
+  let summary = `<h3>${ev.title}</h3>${ev.description}<br><br>`;
+
+  companies.forEach((c,i)=>{
+
+    const beforePrice = c.price;
+
+    c.eps = Math.round(c.eps * (1 + ev.effects[i].eps));
+    c.per += ev.effects[i].per;
+    if(c.per < 1) c.per = 1;
+
+    c.price = Math.round(c.eps * c.per);
+
+    summary += `
+    <b>${c.label}</b><br>
+    주가: ${beforePrice.toLocaleString()} → ${c.price.toLocaleString()}<br><br>
+    `;
+  });
+
+  document.getElementById("eventBox").innerHTML = summary;
+}
+
+function nextPhase(){
+
+  if(phase < events.length){
+    applyEvent(events[phase]);
+    phase++;
+    render();
+  }
+  else{
+    finalResult();
+  }
+}
+
+function finalResult(){
+  let total = player.cash;
+  companies.forEach((c,i)=>{
+    total += player.holdings[i]*c.price;
+  });
+
+  const rate = ((total-1000000)/1000000*100).toFixed(2);
+
+  document.getElementById("eventBox").innerHTML =
+    `<h2>🏁 최종 결과</h2>
+     총 자산: ${total.toLocaleString()}원<br>
+     수익률: ${rate}%`;
+
+  document.querySelector(".next").style.display="none";
+}
+
+// 시작 시 이벤트1 바로 표시
+applyEvent(events[0]);
+phase = 1;
+render();
+
+</script>
+</body>
+</html>
